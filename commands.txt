@@ -1,1 +1,3 @@
 gcc -o build/Debug/outDebug player.c file_reader.c -I. -std=c11
+
+cl.exe player.c file_reader.c buffer_decoder.c minimp3_impl.c /Fo:build\Debug\ /Fe:build\Debug\outDebug.exe
