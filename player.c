@@ -5,19 +5,24 @@
 #include "buffer_decoder.h"
 #include <Windows.h>
 #include <mmsystem.h>
+
 #pragma comment(lib, "winmm.lib")
 
 #define AUDIO_CHUNK_SIZE 4096  
 
 const char *directory_path = "D:\\GitHub\\AudioPlayerC\\audios\\music_list.txt";
 uint8_t bufferRaw[AUDIO_CHUNK_SIZE];
+uint8_t bufferRaw1[AUDIO_CHUNK_SIZE];
 int16_t bufferPCM[MINIMP3_MAX_SAMPLES_PER_FRAME * 2];
 
-size_t bytes_in_buffer;
-size_t bytes_consumed;
-size_t pcm_samples;
+uint8_t *pointer_to_buffer;
+
+size_t bytes_in_buffer = 0;
+size_t bytes_consumed = 0;
+size_t pcm_samples = 0;
 mp3dec_frame_info_t info;
 int audio_initialized = 0;
+int buffer_to_use = 0;
 
 HWAVEOUT hWaveOut;
 
@@ -51,6 +56,11 @@ void play_pcm(HWAVEOUT hWaveOut, int16_t *pcm_samples, size_t num_samples)
     waveOutUnprepareHeader(hWaveOut, &header, sizeof(header));
 }
 
+int async_read_buffer(FileReader *file, uint8_t *bufferRaw, size_t *bytes_in_buffer, size_t AudioChunkSize){
+    int bytes_read = file_reader_read_chunk(file, bufferRaw + *bytes_in_buffer, AudioChunkSize);
+    return bytes_read;
+}
+
 // int listMusics(const char *directorypath){
 //     FILE* music_list_file;
 //     music_list_file = fopen(directory_path, "r");
@@ -71,12 +81,23 @@ int main(int argc, char *argv[])
     printf("Tamanho arquivo: %zu", file->file_size);
     while (1)
     {
-        size_t bytes_read = file_reader_read_chunk(file, bufferRaw + bytes_in_buffer, AUDIO_CHUNK_SIZE);
-        bytes_in_buffer += bytes_read;
+        int bytes_read = 0;
+
+        if(buffer_to_use == 0){
+            bytes_read = async_read_buffer(file, bufferRaw, &bytes_in_buffer, AUDIO_CHUNK_SIZE);
+            bytes_in_buffer += bytes_read;
+            pointer_to_buffer = bufferRaw;
+            buffer_to_use = 1;
+        }else{
+            bytes_read = async_read_buffer(file, bufferRaw1, &bytes_in_buffer, AUDIO_CHUNK_SIZE);
+            bytes_in_buffer += bytes_read;
+            pointer_to_buffer = bufferRaw1;
+            buffer_to_use = 0;
+        }
 
         while (bytes_in_buffer > 0)
         {
-            if (buffer_decoder(bufferRaw, &bytes_in_buffer, bufferPCM, &pcm_samples, &info))
+            if (buffer_decoder(pointer_to_buffer, &bytes_in_buffer, bufferPCM, &pcm_samples, &info))
             {
                 if (pcm_samples > 0)
                 {
